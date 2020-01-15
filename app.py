@@ -3,7 +3,9 @@ from tkinter import messagebox
 import sqlite3 as sql
 import time
 import gc
+import random
 
+# creates database or connects
 def initial_db():
     db = sql.connect('eng-chi.db')
     cs = db.cursor()
@@ -11,6 +13,7 @@ def initial_db():
     db.commit()
     db.close()
 
+# main Class
 class App(Tk):
     def __init__(self,*args,**kwargs):
         Tk.__init__(self,*args,**kwargs)
@@ -19,7 +22,8 @@ class App(Tk):
         container.grid_rowconfigure(0,weight=1)
         container.grid_columnconfigure(0,weight=1)
         self.frames = {}
-        for F in (MainPage,RandomPage,AddPage,DictPage):
+        # Got from a tutorial, in order to show different pages...
+        for F in (MainPage,RandomPage,AddPage,DictPage,QuizPage):
             frame = F(container, self)
             self.frames[F] = frame
             frame.grid(row=0,column=0,sticky="nsew")
@@ -40,25 +44,34 @@ class MainPage(Frame):
         lb1 = Label(self,text="English-Chinese Vocabulary Exercise App",font=(("times new roman"),25,"bold"))
         lb1.place(relx=0.5,rely=0.15,anchor="center")
 
-        lb2 = Label(self,text="You can add vocabulary manually,\nexercise and see your own dictionary",font=(("times new roman"),16,"italic"),fg="gray")
+        lb2 = Label(self,text="You can add vocabulary,\ncreate your own dictionary and exercise!",font=(("times new roman"),16,"italic"),fg="gray")
         lb2.place(relx=0.5,rely=0.4,anchor="center")
 
         add_but = Button(self,text="Add Vocabulary",font=(("times new roman"),14),width=16,
-                         command=lambda:controller.show_frame(AddPage))
-        add_but.place(relx=0.25,rely=0.65,anchor="center")
+                         command=lambda:[controller.show_frame(AddPage),self.add_ref()])
+        add_but.place(relx=0.2,rely=0.65,anchor="center")
 
         dict_but = Button(self,text="Dictionary",font=(("times new roman"),14),width=16,
                           command=lambda:[controller.show_frame(DictPage),self.dict_update()])
-        dict_but.place(relx=0.5,rely=0.65,anchor="center")
+        dict_but.place(relx=0.4,rely=0.65,anchor="center")
 
-        rand_but = Button(self,text="Exercise",font=(("times new roman"),14),width=16,
+        rand_but = Button(self,text="Random Words",font=(("times new roman"),14),width=16,
                           command=lambda:[controller.show_frame(RandomPage),self.init_rand()])
-        rand_but.place(relx=0.75,rely=0.65,anchor="center")
+        rand_but.place(relx=0.6,rely=0.65,anchor="center")
+
+        quiz_but = Button(self, text="Quiz", font=(("times new roman"), 14), width=16,
+                          command=lambda:[controller.show_frame(QuizPage), self.init_quiz()])
+        quiz_but.place(relx=0.8, rely=0.65, anchor="center")
 
         quit_but = Button(self,text="Quit",fg="red",font=(("times new roman"),14),width=16,
                           command=controller.close_app)
         quit_but.place(relx=0.5,rely=0.80,anchor="center")
 
+    #refreshes Addpage, DictPage, RandomPage and QuizPage every time when they become present
+    def add_ref(self):
+        for obj in gc.get_objects():
+            if isinstance(obj, AddPage):
+                obj.refresh()
     def dict_update(self):
         for obj in gc.get_objects():
             if isinstance(obj, DictPage):
@@ -67,6 +80,10 @@ class MainPage(Frame):
         for obj in gc.get_objects():
             if isinstance(obj, RandomPage):
                 obj.initialRandom()
+    def init_quiz(self):
+        for obj in gc.get_objects():
+            if isinstance(obj, QuizPage):
+                obj.initialRand()
 
 class AddPage(Frame):
     def __init__(self, parent, controller):
@@ -105,6 +122,11 @@ class AddPage(Frame):
                         command=lambda:controller.show_frame(MainPage))
         mp_but.place(relx=0.65,rely=0.8,anchor="center")
 
+    def refresh(self):
+        self.ent_eng.delete(0, END)
+        self.ent_pin.delete(0, END)
+        self.ent_han.delete(0, END)
+
     def add_vocab(self):
         db = sql.connect('eng-chi.db')
         cs = db.cursor()
@@ -124,10 +146,8 @@ class AddPage(Frame):
                 db.close()
                 break
             elif x in cont_eng_list:
-                messagebox.showinfo("Message", "It is already in the dictionary...")
-                self.ent_eng.delete(0, END)
-                self.ent_pin.delete(0, END)
-                self.ent_han.delete(0, END)
+                messagebox.showinfo("Message", f"'{x}' is already in the dictionary...")
+                self.refresh()
                 db.close()
                 break
             else:
@@ -136,9 +156,7 @@ class AddPage(Frame):
                 db.commit()
                 db.close()
                 messagebox.showinfo("Message", f"""'{x}-{y}-{z}' is in the dictionary now!""")
-                self.ent_eng.delete(0, END)
-                self.ent_pin.delete(0, END)
-                self.ent_han.delete(0, END)
+                self.refresh()
                 break
 
 class DictPage(Frame):
@@ -179,7 +197,7 @@ class DictPage(Frame):
         self.lb.delete(0,'end')
         db = sql.connect('eng-chi.db')
         cs = db.cursor()
-        cs.execute("SELECT * FROM dictionary")
+        cs.execute("SELECT * FROM dictionary ORDER BY eng")
         slc = cs.fetchall()
         for i in slc:
             x = 1
@@ -374,12 +392,196 @@ class RandomPage(Frame):
             self.r2['text'] = i
             self.r3['text'] = j
 
+class QuizPage(Frame):
+
+    def __init__(self, parent, controller):
+        Frame.__init__(self, parent)
+
+        l1 = Label(self, text="Chinese Quiz", font=(("times new roman"), 25, "bold"))
+        l1.place(relx=0.5, rely=0.15, anchor="center")
+
+        l2 = Label(self, text="Test your vocabulary with randomly appearing words in hanzi, english and pinyin",
+                   font=(("times new roman"), 16, "italic"), fg="gray")
+        l2.place(relx=0.5, rely=0.3, anchor="center")
+
+        l3 = Label(self, text="Select the corresponding...", font=(("times new roman"), 14, "italic"))
+        l3.place(relx=0.25, rely=0.45, anchor="center")
+
+        l_q = Label(self, text="", font=(("times new roman"), 16, "bold"), borderwidth=1, relief="solid", width=20)
+        l_q.place(relx=0.25, rely=0.55, anchor="center")
+        self.l_q = l_q
+
+        l4 = Label(self, text="Answer is...", font=(("times new roman"), 14, "italic"))
+        l4.place(relx=0.75, rely=0.45, anchor="center")
+
+        l_ans = Label(self, text="", font=(("times new roman"), 16, "bold"), borderwidth=1,
+                    relief="solid", width=20)
+        l_ans.place(relx=0.75, rely=0.55, anchor="center")
+        self.l_ans = l_ans
+
+        l_check = Label(self, text="", font=(("times new roman"), 14), fg="green")
+        l_check.place(relx=0.75, rely=0.7, anchor="center")
+        self.l_check = l_check
+
+        next_but = Button(self, text="Next", font=(("times new roman"), 14), width=16,
+                          command=self.skip)
+        next_but.place(relx=0.5, rely=0.8, anchor="center")
+
+        mp_but = Button(self, text="Main Page", font=(("times new roman"), 14), width=16,
+                        command=lambda: controller.show_frame(MainPage))
+        mp_but.place(relx=0.5, rely=0.9, anchor="center")
+
+        but1 = Button(self, text="", font=(("times new roman"), 14), width=16, command=lambda: self.checker(1))
+        but1.place(relx=0.5, rely=0.45, anchor="center")
+        self.but1 = but1
+
+        but2 = Button(self, text="", font=(("times new roman"), 14), width=16, command=lambda: self.checker(2))
+        but2.place(relx=0.5, rely=0.55, anchor="center")
+        self.but2 = but2
+
+        but3 = Button(self, text="", font=(("times new roman"), 14), width=16, command=lambda: self.checker(3))
+        but3.place(relx=0.5, rely=0.65, anchor="center")
+        self.but3 = but3
+
+    def initialRand(self):
+        db = sql.connect('eng-chi.db')
+        cs = db.cursor()
+        cs.execute("SELECT COUNT(*) FROM dictionary")
+        kont = cs.fetchall()
+        for i in kont:
+            i = i[0]
+        print(i,type(i))
+        if i < 4:
+            messagebox.showinfo("Message", "Not enough vocabulary in the database, please add some into your dictionary...")
+            self.l_q['text'] = ''
+            self.l_ans['text'] = ''
+            self.l_check['text'] = ''
+            self.but1['text'] = ''
+            self.but2['text'] = ''
+            self.but3['text'] = ''
+        else:
+            sec = ['hanzi','eng','pinyin']
+            s = random.randint(0,2)
+            sec1 = sec[s]
+            sec.remove(sec1)
+            s = random.randint(0, 1)
+            sec2 = sec[s]
+            cs.execute(f"SELECT {sec1} FROM dictionary ORDER BY RANDOM() LIMIT 1")
+            ques = cs.fetchall()
+            for i in ques:
+                ques = i[0]
+            cs.execute(f"SELECT {sec2} FROM dictionary WHERE {sec1}='{ques}'")
+            key = cs.fetchall()
+            for i in key:
+                key = i[0]
+            print(key)
+            answers = [key, ]
+            
+            while len(answers) < 3:
+                while True:
+                    cs.execute(f"SELECT {sec2} FROM dictionary ORDER BY RANDOM() LIMIT 1")
+                    sec = cs.fetchall()
+                    for i in sec:
+                        i = i[0]
+                    if i  in answers:
+                        continue
+                    else:
+                        answers.append(i)
+                        break
+            self.l_q['text'] = ques
+            s = random.randint(0,2)
+            ran1 = answers[s]
+            self.but1['text'] = ran1
+            answers.remove(ran1)
+            s = random.randint(0,1)
+            ran2 = answers[s]
+            self.but2['text'] = ran2
+            answers.remove(ran2)
+            self.but3['text'] = answers[0]
+
+    def skip(self):
+        db = sql.connect('eng-chi.db')
+        cs = db.cursor()
+        cs.execute("SELECT COUNT(*) FROM dictionary")
+        kont = cs.fetchall()
+        for i in kont:
+            i = i[0]
+        if i < 4:
+            messagebox.showinfo("Message", "Not enough vocabulary in the database, please add some into your dictionary...")
+        else:
+            self.initialRand()
+            self.l_ans['text'] = ''
+            self.l_check['text'] = ''
+
+    def checker(self,connum):
+        if self.l_check['text'] == 'correct!' or self.l_check['text'] == 'incorrect!':
+            self.l_check['text'] = self.l_check['text'] + '\nyou have already selected one...'
+        elif self.l_check['text'] == '':
+            db = sql.connect('eng-chi.db')
+            cs = db.cursor()
+            liste = ['hanzi', 'eng', 'pinyin']
+            ques = self.l_q['text']
+            prospect = []
+            for i in liste:
+                cs.execute(f"SELECT * FROM dictionary WHERE {i}='{ques}'")
+                sec = cs.fetchall()
+                if not sec:
+                    pass
+                else:
+                    x = 0
+                    for j in range(3):
+                        for k in sec:
+                            print(type(k))
+                            y = k[x]
+                            print(x)
+                            prospect.append(y)
+                            x += 1
+            print(prospect)
+            prospect.remove(ques)
+            if self.but1['text'] == prospect[0] or self.but2['text'] == prospect[0] or self.but3['text'] == prospect[0]:
+                key = prospect[0]
+            elif self.but1['text'] == prospect[1] or self.but2['text'] == prospect[1] or self.but3['text'] == prospect[1]:
+                key = prospect[1]
+
+            if connum == 1:
+                if self.but1['text'] == key:
+                    self.l_ans['text'] = key
+                    self.l_check['text'] = "correct!"
+                    self.l_check['fg'] = 'green'
+                else:
+                    self.l_ans['text'] = key
+                    self.l_check['text'] = 'incorrect!'
+                    self.l_check['fg'] = 'red'
+
+            elif connum == 2:
+                if self.but2['text'] == key:
+                    self.l_ans['text'] = key
+                    self.l_check['text'] = "correct!"
+                    self.l_check['fg'] = 'green'
+                else:
+                    self.l_ans['text'] = key
+                    self.l_check['text'] = 'incorrect!'
+                    self.l_check['fg'] = 'red'
+
+            elif connum == 3:
+                if self.but3['text'] == key:
+                    self.l_ans['text'] = key
+                    self.l_check['text'] = "correct!"
+                    self.l_check['fg'] = 'green'
+                else:
+                    self.l_ans['text'] = key
+                    self.l_check['text'] = 'incorrect!'
+                    self.l_check['fg'] = 'red'
+
+
 initial_db()
 app = App()
-app.geometry("600x300")
+app.geometry("700x300")
 app.title("Exercise Chinese")
 app.resizable(0,0)
 app.mainloop()
+
+
 
 
 
