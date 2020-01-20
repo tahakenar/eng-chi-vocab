@@ -3,7 +3,8 @@ English-Chinese Vocabulary App
 
 Basic vocabulary training application
 
-...in order to learn a little bit about tkinter...
+You can create your own dictionary
+Also you can exercise vocab
 
 credit: DoğuşcanK
 
